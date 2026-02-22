@@ -307,6 +307,51 @@ class Series:
         mask = self.notna()._data
         return Series(self._data[mask], index=self.index[mask], name=self.name)
 
+    def drop_duplicates(self, keep: str = "first") -> "Series":
+        """Remove duplicate values.
+
+        Parameters
+        ----------
+        keep : {'first', 'last', False}, default 'first'
+            - 'first' : keep the first occurrence of each duplicate.
+            - 'last'  : keep the last occurrence of each duplicate.
+            - False   : drop **all** occurrences of duplicated values.
+        """
+        n = len(self._data)
+        mask = np.ones(n, dtype=bool)
+        seen: dict = {}
+
+        if keep == "first":
+            for i in range(n):
+                val = self._data[i]
+                key = val.item() if isinstance(val, np.generic) else val
+                if key in seen:
+                    mask[i] = False
+                else:
+                    seen[key] = i
+        elif keep == "last":
+            for i in range(n - 1, -1, -1):
+                val = self._data[i]
+                key = val.item() if isinstance(val, np.generic) else val
+                if key in seen:
+                    mask[i] = False
+                else:
+                    seen[key] = i
+        elif keep is False:
+            counts: dict = {}
+            for i in range(n):
+                val = self._data[i]
+                key = val.item() if isinstance(val, np.generic) else val
+                counts.setdefault(key, []).append(i)
+            for positions in counts.values():
+                if len(positions) > 1:
+                    for p in positions:
+                        mask[p] = False
+        else:
+            raise ValueError(f"keep must be 'first', 'last', or False, got {keep!r}")
+
+        return Series(self._data[mask], index=self.index[mask], name=self.name)
+
     def unique(self) -> np.ndarray:
         return np.unique(self._data)
 

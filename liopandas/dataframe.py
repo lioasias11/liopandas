@@ -429,6 +429,71 @@ class DataFrame:
         new_data = {c: self._data[c][idx] for c in self._columns}
         return DataFrame(new_data, index=self.index[idx])
 
+    def drop_duplicates(
+        self,
+        subset: Optional[Union[str, List[str]]] = None,
+        keep: str = "first",
+    ) -> "DataFrame":
+        """Remove duplicate rows.
+
+        Parameters
+        ----------
+        subset : str, list of str, or None (default None)
+            Column label(s) to consider for identifying duplicates.
+            ``None`` means all columns.
+        keep : {'first', 'last', False}, default 'first'
+            - 'first' : keep the first occurrence.
+            - 'last'  : keep the last occurrence.
+            - False   : drop **all** duplicated rows.
+        """
+        if subset is None:
+            cols = self._columns.tolist()
+        elif isinstance(subset, str):
+            cols = [subset]
+        else:
+            cols = list(subset)
+
+        n = len(self)
+        mask = np.ones(n, dtype=bool)
+
+        def _row_key(i: int):
+            return tuple(
+                v.item() if isinstance(v, np.generic) else v
+                for v in (self._data[c][i] for c in cols)
+            )
+
+        seen: dict = {}
+
+        if keep == "first":
+            for i in range(n):
+                key = _row_key(i)
+                if key in seen:
+                    mask[i] = False
+                else:
+                    seen[key] = i
+        elif keep == "last":
+            for i in range(n - 1, -1, -1):
+                key = _row_key(i)
+                if key in seen:
+                    mask[i] = False
+                else:
+                    seen[key] = i
+        elif keep is False:
+            counts: dict = {}
+            for i in range(n):
+                key = _row_key(i)
+                counts.setdefault(key, []).append(i)
+            for positions in counts.values():
+                if len(positions) > 1:
+                    for p in positions:
+                        mask[p] = False
+        else:
+            raise ValueError(f"keep must be 'first', 'last', or False, got {keep!r}")
+
+        idx = np.where(mask)[0]
+        new_data = {c: self._data[c][idx] for c in self._columns}
+        return DataFrame(new_data, index=self.index[idx])
+
     # ------------------------------------------------------------------
     # GroupBy delegation
     # ------------------------------------------------------------------
