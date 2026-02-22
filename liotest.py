@@ -1,24 +1,11 @@
 import liopandas as lp
 
-df = lp.DataFrame({
-    "name": ["Alice", "Bob", "Charlie", "Alice"],
-    "age": [35, 30, 35, 35],
-    "salary": [70000, 60000, 70000, 70000],
-})
-
-df = df[df["age"] > 25]
-
-print(df.groupby("age").mean().drop(columns=["name"]))
-
-df = df.drop(columns=["age"])
+df = lp.read_csv("cleaned_merged_seasons.csv")
 
 print(df)
 
-df = df.drop_duplicates(subset=["name"])
-
+df = df.groupby(["position", "season_x"]).sum()[["position","season_x","total_points", "assists", "goals_scored", "clean_sheets", "red_cards", "yellow_cards"]]
 print(df)
-
-
 
 
 

@@ -521,37 +521,115 @@ class DataFrame:
     def __repr__(self) -> str:
         if len(self._columns) == 0:
             return "Empty DataFrame"
-        max_rows = 20
+
         n = len(self)
-        cols = self._columns.tolist()
+        all_cols = self._columns.tolist()
+        num_cols = len(all_cols)
         labels = self.index.tolist()
 
-        # Determine column widths
-        col_widths = {}
-        for c in cols:
-            vals = [str(self._data[c][i].item() if isinstance(self._data[c][i], np.generic) else self._data[c][i])
-                    for i in range(min(n, max_rows))]
-            col_widths[c] = max(len(c), max((len(v) for v in vals), default=0))
+        # ── Display settings ──────────────────────────────────────────
+        max_rows = 10        # show head/tail of 5 each when exceeded
+        head_rows = 5
+        tail_rows = 5
+        max_cols = 10        # show first/last 5 each when exceeded
+        head_cols = 5
+        tail_cols = 5
+        max_cell_width = 20  # truncate long cell values
 
-        idx_width = max((len(str(l)) for l in labels[:min(n, max_rows)]), default=0)
+        # ── Determine which rows and columns to display ───────────────
+        truncate_rows = n > max_rows
+        truncate_cols = num_cols > max_cols
 
-        # Header
-        header = " " * idx_width + "  " + "  ".join(c.rjust(col_widths[c]) for c in cols)
-        lines = [header]
-
-        show = min(n, max_rows)
-        for i in range(show):
-            lbl = str(labels[i]).ljust(idx_width)
-            vals = []
-            for c in cols:
-                v = self._data[c][i]
-                v = v.item() if isinstance(v, np.generic) else v
-                vals.append(str(v).rjust(col_widths[c]))
-            lines.append(lbl + "  " + "  ".join(vals))
-
-        if n > max_rows:
-            lines.append(f"... ({n} rows × {len(cols)} columns)")
+        if truncate_rows:
+            row_indices = list(range(head_rows)) + list(range(n - tail_rows, n))
         else:
-            lines.append(f"\n[{n} rows × {len(cols)} columns]")
+            row_indices = list(range(n))
+
+        if truncate_cols:
+            display_cols = all_cols[:head_cols] + all_cols[-tail_cols:]
+        else:
+            display_cols = all_cols
+
+        # ── Helpers ───────────────────────────────────────────────────
+        def _format_val(v):
+            """Convert a raw array element to a display string."""
+            v = v.item() if isinstance(v, np.generic) else v
+            s = str(v)
+            if len(s) > max_cell_width:
+                s = s[: max_cell_width - 1] + "…"
+            return s
+
+        def _is_numeric_col(col_name):
+            """Check if the column holds numeric data."""
+            return np.issubdtype(self._data[col_name].dtype, np.number)
+
+        # ── Build cell grid (list of lists) ───────────────────────────
+        # Each "grid row" is a list of cell strings.
+        header_cells = []
+        col_numeric = []
+        for c in display_cols:
+            h = str(c)
+            if len(h) > max_cell_width:
+                h = h[: max_cell_width - 1] + "…"
+            header_cells.append(h)
+            col_numeric.append(_is_numeric_col(c))
+
+        if truncate_cols:
+            header_cells.insert(head_cols, "···")
+            col_numeric.insert(head_cols, False)
+
+        # Index labels for displayed rows
+        disp_labels = [str(labels[i]) for i in row_indices]
+
+        data_rows = []
+        for i in row_indices:
+            row_cells = []
+            for c in display_cols:
+                row_cells.append(_format_val(self._data[c][i]))
+            if truncate_cols:
+                row_cells.insert(head_cols, "···")
+            data_rows.append(row_cells)
+
+        # Insert an ellipsis row when rows are truncated
+        if truncate_rows:
+            ellipsis_row = ["⋮" for _ in header_cells]
+            data_rows.insert(head_rows, ellipsis_row)
+            disp_labels.insert(head_rows, "⋮")
+
+        # ── Compute column widths ─────────────────────────────────────
+        num_display_cols = len(header_cells)
+        col_widths = [len(header_cells[j]) for j in range(num_display_cols)]
+        for row_cells in data_rows:
+            for j, cell in enumerate(row_cells):
+                col_widths[j] = max(col_widths[j], len(cell))
+
+        idx_width = max((len(l) for l in disp_labels), default=0)
+
+        # ── Render ────────────────────────────────────────────────────
+        def _align(val, width, numeric):
+            return val.rjust(width) if numeric else val.ljust(width)
+
+        # Header line
+        header_line = " " * idx_width + "  " + "  ".join(
+            _align(header_cells[j], col_widths[j], col_numeric[j])
+            for j in range(num_display_cols)
+        )
+        # Separator line
+        sep_line = "─" * idx_width + "──" + "──".join(
+            "─" * col_widths[j] for j in range(num_display_cols)
+        )
+
+        lines = [header_line, sep_line]
+
+        for idx_label, row_cells in zip(disp_labels, data_rows):
+            row_str = idx_label.ljust(idx_width) + "  " + "  ".join(
+                _align(row_cells[j], col_widths[j], col_numeric[j])
+                for j in range(num_display_cols)
+            )
+            lines.append(row_str)
+
+        # Footer
+        lines.append("")
+        lines.append(f"[{n} rows × {num_cols} columns]")
 
         return "\n".join(lines)
