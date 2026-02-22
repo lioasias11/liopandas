@@ -1,4 +1,4 @@
-"""LioPandas — a minimal pandas-like library built from scratch using NumPy."""
+"""LioPandas — a minimal pandas-like library built from scratch"""
 
 from .series import Series
 from .dataframe import DataFrame

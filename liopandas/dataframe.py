@@ -138,6 +138,7 @@ class DataFrame:
         columns: Optional[Sequence[str]] = None,
     ):
         self._data: Dict[str, np.ndarray] = {}
+        self._columns: Index  # Type hint for linter
 
         if data is None:
             data = {}
@@ -266,7 +267,7 @@ class DataFrame:
     def __delitem__(self, key):
         if key not in self._data:
             raise KeyError(key)
-        del self._data[key]
+        self._data.pop(key)
         cols = [c for c in self._columns if c != key]
         self._columns = Index(cols)
 
@@ -422,7 +423,10 @@ class DataFrame:
         mask = np.ones(len(self), dtype=bool)
         for c in self._columns:
             try:
-                mask &= ~np.isnan(self._data[c].astype(float))
+                col_data = self._data[c]
+                # Use np.logical_and to satisfy linter type checking
+                valid = ~np.isnan(col_data.astype(float))
+                mask = np.logical_and(mask, valid)
             except (ValueError, TypeError):
                 pass
         idx = np.where(mask)[0]

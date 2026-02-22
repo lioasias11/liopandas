@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import csv
 import numpy as np
-from typing import Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .dataframe import DataFrame
+    from .series import Series
 
 
 def read_csv(filepath: str, index_col: Optional[int] = None) -> "DataFrame":
@@ -56,8 +60,9 @@ def read_csv(filepath: str, index_col: Optional[int] = None) -> "DataFrame":
     return DataFrame(data, index=index)
 
 
-def _to_csv(df, filepath: str, index: bool = True) -> None:
+def _to_csv(df: DataFrame, filepath: str, index: bool = True) -> None:
     """Write a DataFrame to a CSV file."""
+
     cols = df._columns.tolist()
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)

@@ -1,0 +1,12 @@
+{
+    "include": [
+        "liopandas",
+        "liotest.py",
+        "tests"
+    ],
+    "executionEnvironments": [
+        {
+            "root": "."
+        }
+    ]
+}

@@ -263,7 +263,8 @@ class Series:
 
     def value_counts(self) -> "Series":
         unique, counts = np.unique(self._data, return_counts=True)
-        order = np.argsort(-counts)
+        # Use np.negative to satisfy linter that doesn't recognize numpy unary minus
+        order = np.argsort(np.negative(counts))
         return Series(counts[order], index=Index(unique[order]), name=self.name)
 
     def sort_values(self, ascending: bool = True) -> "Series":
