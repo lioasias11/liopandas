@@ -499,6 +499,110 @@ class DataFrame:
         return DataFrame(new_data, index=self.index[idx])
 
     # ------------------------------------------------------------------
+    # Comparison
+    # ------------------------------------------------------------------
+
+    def compare(
+        self,
+        other: "DataFrame",
+        keep_equal: bool = False,
+        result_names: Tuple[str, str] = ("self", "other"),
+    ) -> "DataFrame":
+        """Find element-wise differences between two DataFrames.
+
+        Both DataFrames must have the same shape and columns.
+
+        Parameters
+        ----------
+        other : DataFrame
+            The DataFrame to compare against.
+        keep_equal : bool, default False
+            If False, replace equal values with None so only differences
+            stand out.  If True, show every value.
+        result_names : tuple of str, default ("self", "other")
+            Suffixes used for the paired output columns.
+
+        Returns
+        -------
+        DataFrame
+            A DataFrame that contains only the columns with at least one
+            difference.  Each such column is expanded into two columns
+            named ``<col>_<result_names[0]>`` and ``<col>_<result_names[1]>``
+            so you can see the old and new values side-by-side.
+            Only the rows where at least one column differs are kept.
+        """
+        if self.shape != other.shape:
+            raise ValueError(
+                f"Can only compare DataFrames with the same shape, "
+                f"got {self.shape} vs {other.shape}"
+            )
+        self_cols = self._columns.tolist()
+        other_cols = other._columns.tolist()
+        if self_cols != other_cols:
+            raise ValueError(
+                "Can only compare DataFrames with the same columns"
+            )
+
+        lbl_self, lbl_other = result_names
+        n = len(self)
+
+        # Find which cells differ
+        row_has_diff = np.zeros(n, dtype=bool)
+        diff_cols: List[str] = []
+
+        for c in self_cols:
+            a = self._data[c]
+            b = other._data[c]
+            try:
+                col_diff = a != b
+            except (TypeError, ValueError):
+                # Fall back to element-wise comparison for object arrays
+                col_diff = np.array(
+                    [
+                        not (ai == bi if not (isinstance(ai, float) and isinstance(bi, float))
+                             else (np.isnan(ai) and np.isnan(bi)) or ai == bi)
+                        for ai, bi in zip(a, b)
+                    ],
+                    dtype=bool,
+                )
+            if col_diff.any():
+                diff_cols.append(c)
+                row_has_diff |= col_diff
+
+        if not diff_cols:
+            return DataFrame()  # No differences
+
+        diff_idx = np.where(row_has_diff)[0]
+
+        # Build output data
+        out_data: Dict[str, np.ndarray] = {}
+        for c in diff_cols:
+            a_vals = self._data[c][diff_idx]
+            b_vals = other._data[c][diff_idx]
+
+            if not keep_equal:
+                # Mask equal values with None ⇒ object array
+                col_eq = np.array(
+                    [
+                        (ai == bi) if not (isinstance(ai, float) and isinstance(bi, float))
+                        else (np.isnan(ai) and np.isnan(bi)) or ai == bi
+                        for ai, bi in zip(a_vals, b_vals)
+                    ],
+                    dtype=bool,
+                )
+                a_out = np.where(col_eq, None, a_vals).astype(object)
+                b_out = np.where(col_eq, None, b_vals).astype(object)
+            else:
+                a_out = a_vals
+                b_out = b_vals
+
+            out_data[f"{c}_{lbl_self}"] = a_out
+            out_data[f"{c}_{lbl_other}"] = b_out
+
+        out_index = self.index[diff_idx]
+        return DataFrame(out_data, index=out_index)
+
+    # ------------------------------------------------------------------
     # GroupBy delegation
     # ------------------------------------------------------------------
 
@@ -528,7 +632,7 @@ class DataFrame:
         labels = self.index.tolist()
 
         # ── Display settings ──────────────────────────────────────────
-        max_rows = 10        # show head/tail of 5 each when exceeded
+        max_rows = 60        # show head/tail of 5 each when exceeded
         head_rows = 5
         tail_rows = 5
         max_cols = 10        # show first/last 5 each when exceeded

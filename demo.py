@@ -1,16 +1,9 @@
-#!/usr/bin/env python
-"""
-LioPandas Demo — end-to-end showcase of the library.
-"""
+import liopandas as lp
 import os, sys, tempfile
-
-# Ensure the package is importable from this directory
 sys.path.insert(0, os.path.dirname(__file__))
 
-import liopandas as lp
-
 print("=" * 60)
-print("  LioPandas v{} — Demo".format(lp.__version__))
+print("  LioPandas v{}".format(lp.__version__))
 print("=" * 60)
 
 # ── 1.  Series ────────────────────────────────────────────────
@@ -70,4 +63,4 @@ print(f"  Wrote {tmp}")
 print(f"  Re-loaded shape: {df_loaded.shape}")
 print(df_loaded)
 
-print("\n✅ All demos passed!\n")
+print("\n All tests passed!\n")
