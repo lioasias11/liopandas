@@ -498,6 +498,50 @@ class DataFrame:
         new_data = {c: self._data[c][idx] for c in self._columns}
         return DataFrame(new_data, index=self.index[idx])
 
+    def to_numpy(
+        self,
+        dtype: Optional[Any] = None,
+        copy: bool = False,
+        na_value: Any = None,
+    ) -> np.ndarray:
+        """Return a NumPy ndarray representing the values in this DataFrame.
+
+        Parameters
+        ----------
+        dtype : str or numpy.dtype, optional
+            The dtype to pass to :meth:`numpy.asarray`.
+        copy : bool, default False
+            Whether to ensure that the returned value is a not a view on
+            another array.
+        na_value : Any, optional
+            The value to use for missing values. The default is None, which
+            means that no replacement will be done.
+        """
+        # use existing .values property to get the base array
+        data = self.values
+
+        if na_value is not None:
+            data = data.copy()
+            try:
+                # Try vectorised replacement if possible
+                mask = np.isnan(data.astype(float))
+                data = data.astype(float)
+                data[mask] = na_value
+            except (ValueError, TypeError):
+                # Fallback for object arrays or non-numeric
+                for i in range(data.shape[0]):
+                    for j in range(data.shape[1]):
+                        val = data[i, j]
+                        if val is None or (isinstance(val, float) and np.isnan(val)):
+                            data[i, j] = na_value
+
+        if dtype is not None:
+            data = data.astype(dtype)
+
+        if copy:
+            return data.copy()
+        return data
+
     # ------------------------------------------------------------------
     # Comparison
     # ------------------------------------------------------------------

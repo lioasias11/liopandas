@@ -1,2 +1,0 @@
-liopandas
-tests

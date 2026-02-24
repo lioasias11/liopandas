@@ -353,6 +353,42 @@ class Series:
 
         return Series(self._data[mask], index=self.index[mask], name=self.name)
 
+    def to_numpy(
+        self,
+        dtype: Optional[Any] = None,
+        copy: bool = False,
+        na_value: Any = None,
+    ) -> np.ndarray:
+        """Return a NumPy ndarray representing the values in this Series.
+
+        Parameters
+        ----------
+        dtype : str or numpy.dtype, optional
+            The dtype to pass to :meth:`numpy.asarray`.
+        copy : bool, default False
+            Whether to ensure that the returned value is a not a view on
+            another array.
+        na_value : Any, optional
+            The value to use for missing values. The default is None, which
+            means that no replacement will be done.
+        """
+        data = self._data
+        if na_value is not None:
+            data = data.copy()
+            try:
+                mask = np.isnan(data.astype(float))
+                data = data.astype(float)
+                data[mask] = na_value
+            except (ValueError, TypeError):
+                data = np.array([na_value if x is None else x for x in data])
+
+        if dtype is not None:
+            data = data.astype(dtype)
+
+        if copy:
+            return data.copy()
+        return data
+
     def unique(self) -> np.ndarray:
         return np.unique(self._data)
 

@@ -1,4 +1,5 @@
 import liopandas as lp
+import pandas as pd
 import os, sys, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -24,7 +25,7 @@ print(df)
 
 # ── 3.  Filtering ─────────────────────────────────────────────
 print("\n▸ 3. Boolean filtering  (salary > 70 000)")
-rich = df[df["salary"] > 70000] # type: ignore
+rich = df[df["salary"] > 70000] 
 print(rich)
 
 # ── 4.  Column arithmetic ─────────────────────────────────────
@@ -67,4 +68,19 @@ print(df_loaded)
 comparedf = df.compare(rich) # type: ignore
 print(comparedf)
 
+
+
 print("\n All tests passed!\n")
+
+
+
+df = lp.DataFrame({
+    "name":   ["Alice", "Bob", "Charlie", "Diana", "Eve"],
+    "age":    [28, 34, 22, 45, 31],
+    "salary": [72000, 93000, 55000, 110000, 85000],
+    "dept":   ["Eng", "Eng", "Sales", "Sales", "Eng"],
+})
+nuparr = df.to_numpy()
+
+print(nuparr)
+

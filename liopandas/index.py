@@ -18,7 +18,6 @@ class Index:
             data = []
         self._labels = np.array(list(data))
         self.name = name
-        # label -> first position  (rebuilt lazily)
         self._label_map: Optional[dict] = None
 
     # ------------------------------------------------------------------
