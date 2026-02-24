@@ -24,12 +24,12 @@ print(df)
 
 # ── 3.  Filtering ─────────────────────────────────────────────
 print("\n▸ 3. Boolean filtering  (salary > 70 000)")
-rich = df[df["salary"] > 70000]
+rich = df[df["salary"] > 70000] # type: ignore
 print(rich)
 
 # ── 4.  Column arithmetic ─────────────────────────────────────
 print("\n▸ 4. Add computed column  (bonus = salary * 0.1)")
-df["bonus"] = df["salary"] * 0.1
+df["bonus"] = df["salary"] * 0.1 # type: ignore
 print(df)
 
 # ── 5.  GroupBy ────────────────────────────────────────────────
@@ -62,5 +62,9 @@ df_loaded = lp.read_csv(tmp)
 print(f"  Wrote {tmp}")
 print(f"  Re-loaded shape: {df_loaded.shape}")
 print(df_loaded)
+
+# 10. compare df
+comparedf = df.compare(rich) # type: ignore
+print(comparedf)
 
 print("\n All tests passed!\n")

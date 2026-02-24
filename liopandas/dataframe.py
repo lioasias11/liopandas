@@ -243,7 +243,7 @@ class DataFrame:
             return DataFrame(new_data, index=self.index.copy())
         # single column
         if key in self._data:
-            return Series(self._data[key], index=self.index.copy(), name=key)
+            return Series(self._data[key], index=self.index.copy(), name=key) # type: ignore
         raise KeyError(key)
 
     def __setitem__(self, key, value):
@@ -507,10 +507,14 @@ class DataFrame:
         other: "DataFrame",
         keep_equal: bool = False,
         result_names: Tuple[str, str] = ("self", "other"),
+        align_axis: int = 1,
     ) -> "DataFrame":
         """Find element-wise differences between two DataFrames.
 
-        Both DataFrames must have the same shape and columns.
+        The two DataFrames may have different shapes, columns, or indexes.
+        Rows are aligned by their index labels and columns by name.
+        Rows or columns that appear in only one DataFrame are treated as
+        differences (the missing side is shown as ``None``).
 
         Parameters
         ----------
@@ -521,6 +525,8 @@ class DataFrame:
             stand out.  If True, show every value.
         result_names : tuple of str, default ("self", "other")
             Suffixes used for the paired output columns.
+        align_axis : int, default 1
+            Ignored for now (kept for API compatibility).
 
         Returns
         -------
@@ -531,40 +537,91 @@ class DataFrame:
             so you can see the old and new values side-by-side.
             Only the rows where at least one column differs are kept.
         """
-        if self.shape != other.shape:
-            raise ValueError(
-                f"Can only compare DataFrames with the same shape, "
-                f"got {self.shape} vs {other.shape}"
-            )
+        lbl_self, lbl_other = result_names
+
+        # --- build unified index (preserving order) ----------------------
+        self_labels = self.index.tolist()
+        other_labels = other.index.tolist()
+
+        seen: set = set()
+        all_labels: List = []
+        for lab in self_labels + other_labels:
+            key = lab.item() if isinstance(lab, np.generic) else lab
+            if key not in seen:
+                seen.add(key)
+                all_labels.append(key)
+
+        self_label_set = set(
+            lab.item() if isinstance(lab, np.generic) else lab
+            for lab in self_labels
+        )
+        other_label_set = set(
+            lab.item() if isinstance(lab, np.generic) else lab
+            for lab in other_labels
+        )
+
+        # Quick look-up: label → positional index in each DF
+        self_loc: Dict = {}
+        for i, lab in enumerate(self_labels):
+            key = lab.item() if isinstance(lab, np.generic) else lab
+            self_loc.setdefault(key, i)
+
+        other_loc: Dict = {}
+        for i, lab in enumerate(other_labels):
+            key = lab.item() if isinstance(lab, np.generic) else lab
+            other_loc.setdefault(key, i)
+
+        # --- build unified column list -----------------------------------
         self_cols = self._columns.tolist()
         other_cols = other._columns.tolist()
-        if self_cols != other_cols:
-            raise ValueError(
-                "Can only compare DataFrames with the same columns"
-            )
 
-        lbl_self, lbl_other = result_names
-        n = len(self)
+        col_seen: set = set()
+        all_cols: List[str] = []
+        for c in self_cols + other_cols:
+            if c not in col_seen:
+                col_seen.add(c)
+                all_cols.append(c)
 
-        # Find which cells differ
+        self_col_set = set(self_cols)
+        other_col_set = set(other_cols)
+
+        n = len(all_labels)
+
+        # --- detect per-cell differences ---------------------------------
+        def _vals_equal(a: Any, b: Any) -> bool:
+            """Compare two scalar values, treating NaN == NaN."""
+            if a is None and b is None:
+                return True
+            if a is None or b is None:
+                return False
+            if isinstance(a, float) and isinstance(b, float):
+                if np.isnan(a) and np.isnan(b):
+                    return True
+            try:
+                return bool(a == b)
+            except (TypeError, ValueError):
+                return False
+
         row_has_diff = np.zeros(n, dtype=bool)
         diff_cols: List[str] = []
 
-        for c in self_cols:
-            a = self._data[c]
-            b = other._data[c]
-            try:
-                col_diff = a != b
-            except (TypeError, ValueError):
-                # Fall back to element-wise comparison for object arrays
-                col_diff = np.array(
-                    [
-                        not (ai == bi if not (isinstance(ai, float) and isinstance(bi, float))
-                             else (np.isnan(ai) and np.isnan(bi)) or ai == bi)
-                        for ai, bi in zip(a, b)
-                    ],
-                    dtype=bool,
-                )
+        for c in all_cols:
+            col_diff = np.zeros(n, dtype=bool)
+            for ri, lab in enumerate(all_labels):
+                in_self = lab in self_label_set and c in self_col_set
+                in_other = lab in other_label_set and c in other_col_set
+
+                if in_self and in_other:
+                    a_val = self._data[c][self_loc[lab]]
+                    b_val = other._data[c][other_loc[lab]]
+                    a_val = a_val.item() if isinstance(a_val, np.generic) else a_val
+                    b_val = b_val.item() if isinstance(b_val, np.generic) else b_val
+                    if not _vals_equal(a_val, b_val):
+                        col_diff[ri] = True
+                elif in_self or in_other:
+                    # present in only one → always a difference
+                    col_diff[ri] = True
+
             if col_diff.any():
                 diff_cols.append(c)
                 row_has_diff |= col_diff
@@ -572,41 +629,47 @@ class DataFrame:
         if not diff_cols:
             return DataFrame()  # No differences
 
-        diff_idx = np.where(row_has_diff)[0]
+        diff_positions = np.where(row_has_diff)[0]
 
-        # Build output data
+        # --- build output ------------------------------------------------
         out_data: Dict[str, np.ndarray] = {}
         for c in diff_cols:
-            a_vals = self._data[c][diff_idx]
-            b_vals = other._data[c][diff_idx]
+            a_list: list = []
+            b_list: list = []
 
-            if not keep_equal:
-                # Mask equal values with None ⇒ object array
-                col_eq = np.array(
-                    [
-                        (ai == bi) if not (isinstance(ai, float) and isinstance(bi, float))
-                        else (np.isnan(ai) and np.isnan(bi)) or ai == bi
-                        for ai, bi in zip(a_vals, b_vals)
-                    ],
-                    dtype=bool,
-                )
-                a_out = np.where(col_eq, None, a_vals).astype(object)
-                b_out = np.where(col_eq, None, b_vals).astype(object)
-            else:
-                a_out = a_vals
-                b_out = b_vals
+            for ri in diff_positions:
+                lab = all_labels[ri]
+                in_self = lab in self_label_set and c in self_col_set
+                in_other = lab in other_label_set and c in other_col_set
 
-            out_data[f"{c}_{lbl_self}"] = a_out
-            out_data[f"{c}_{lbl_other}"] = b_out
+                a_val = None
+                b_val = None
+                if in_self:
+                    v = self._data[c][self_loc[lab]]
+                    a_val = v.item() if isinstance(v, np.generic) else v
+                if in_other:
+                    v = other._data[c][other_loc[lab]]
+                    b_val = v.item() if isinstance(v, np.generic) else v
 
-        out_index = self.index[diff_idx]
+                if not keep_equal and in_self and in_other:
+                    if _vals_equal(a_val, b_val):
+                        a_val = None
+                        b_val = None
+
+                a_list.append(a_val)
+                b_list.append(b_val)
+
+            out_data[f"{c}_{lbl_self}"] = np.array(a_list, dtype=object)
+            out_data[f"{c}_{lbl_other}"] = np.array(b_list, dtype=object)
+
+        out_index = [all_labels[ri] for ri in diff_positions]
         return DataFrame(out_data, index=out_index)
 
     # ------------------------------------------------------------------
     # GroupBy delegation
     # ------------------------------------------------------------------
 
-    def groupby(self, by: Union[str, List[str]]) -> "GroupBy":
+    def groupby(self, by: Union[str, List[str]]) -> "GroupBy": # type: ignore
         from .groupby import GroupBy
         return GroupBy(self, by)
 
