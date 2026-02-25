@@ -4,7 +4,7 @@ import os, sys, tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 
 print("=" * 60)
-print("  LioPandas v{}".format(lp.__version__))
+print("LioPandas v{}".format(lp.__version__))
 print("=" * 60)
 
 # ── 1.  Series ────────────────────────────────────────────────
@@ -68,12 +68,7 @@ print(df_loaded)
 comparedf = df.compare(rich) # type: ignore
 print(comparedf)
 
-
-
-print("\n All tests passed!\n")
-
-
-
+# 11. to_numpy
 df = lp.DataFrame({
     "name":   ["Alice", "Bob", "Charlie", "Diana", "Eve"],
     "age":    [28, 34, 22, 45, 31],
@@ -83,4 +78,16 @@ df = lp.DataFrame({
 nuparr = df.to_numpy()
 
 print(nuparr)
+
+# 12. to_pandas
+
+# Liopandas to Pandas
+ldf = lp.DataFrame({"A": [1, 2], "B": [3, 4]})
+pdf = ldf.to_pandas()
+print(type(pdf))
+# Pandas to Liopandas
+ldf_new = lp.DataFrame.from_pandas(pdf)
+print(type(ldf_new))
+
+print("\n All tests passed!\n")
 

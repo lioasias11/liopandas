@@ -395,6 +395,44 @@ class Series:
     def nunique(self) -> int:
         return len(self.unique())
 
+    def to_pandas(self):
+        """Convert the Series to a pandas Series."""
+        try:
+            import pandas as pd
+            return pd.Series(self._data, index=self.index.tolist(), name=self.name)
+        except ImportError:
+            raise ImportError("pandas is required for to_pandas()")
+
+    @classmethod
+    def from_pandas(cls, s) -> "Series":
+        """Create a Series from a pandas Series."""
+        try:
+            import pandas as pd
+            if not isinstance(s, pd.Series):
+                raise TypeError(f"Expected pandas.Series, got {type(s)}")
+            return cls(s.values, index=s.index.tolist(), name=s.name)
+        except ImportError:
+            raise ImportError("pandas is required for from_pandas()")
+
+    def to_geopandas(self):
+        """Convert the Series to a geopandas GeoSeries."""
+        try:
+            import geopandas as gpd
+            return gpd.GeoSeries(self._data, index=self.index.tolist(), name=self.name)
+        except ImportError:
+            raise ImportError("geopandas is required for to_geopandas()")
+
+    @classmethod
+    def from_geopandas(cls, s) -> "Series":
+        """Create a Series from a geopandas GeoSeries."""
+        try:
+            import geopandas as gpd
+            if not isinstance(s, gpd.GeoSeries):
+                raise TypeError(f"Expected geopandas.GeoSeries, got {type(s)}")
+            return cls(s.values, index=s.index.tolist(), name=s.name)
+        except ImportError:
+            raise ImportError("geopandas is required for from_geopandas()")
+
     # ------------------------------------------------------------------
     # Representation
     # ------------------------------------------------------------------

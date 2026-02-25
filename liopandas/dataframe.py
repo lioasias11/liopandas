@@ -542,6 +542,46 @@ class DataFrame:
             return data.copy()
         return data
 
+    def to_pandas(self):
+        """Convert the DataFrame to a pandas DataFrame."""
+        try:
+            import pandas as pd
+            return pd.DataFrame(self._data, index=self.index.tolist())
+        except ImportError:
+            raise ImportError("pandas is required for to_pandas()")
+
+    @classmethod
+    def from_pandas(cls, df) -> "DataFrame":
+        """Create a DataFrame from a pandas DataFrame."""
+        try:
+            import pandas as pd
+            if not isinstance(df, pd.DataFrame):
+                raise TypeError(f"Expected pandas.DataFrame, got {type(df)}")
+            data = {c: df[c].values for c in df.columns}
+            return cls(data, index=df.index.tolist(), columns=df.columns.tolist())
+        except ImportError:
+            raise ImportError("pandas is required for from_pandas()")
+
+    def to_geopandas(self, geometry=None):
+        """Convert the DataFrame to a geopandas GeoDataFrame."""
+        try:
+            import geopandas as gpd
+            return gpd.GeoDataFrame(self._data, index=self.index.tolist(), geometry=geometry)
+        except ImportError:
+            raise ImportError("geopandas is required for to_geopandas()")
+
+    @classmethod
+    def from_geopandas(cls, df) -> "DataFrame":
+        """Create a DataFrame from a geopandas GeoDataFrame."""
+        try:
+            import geopandas as gpd
+            if not isinstance(df, gpd.GeoDataFrame):
+                raise TypeError(f"Expected geopandas.GeoDataFrame, got {type(df)}")
+            data = {c: df[c].values for c in df.columns}
+            return cls(data, index=df.index.tolist(), columns=df.columns.tolist())
+        except ImportError:
+            raise ImportError("geopandas is required for from_geopandas()")
+
     # ------------------------------------------------------------------
     # Comparison
     # ------------------------------------------------------------------
