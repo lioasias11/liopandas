@@ -765,6 +765,14 @@ class DataFrame:
         from .io import _to_csv
         _to_csv(self, filepath, index=index)
 
+    def plot_static(self, mbtiles_path: Optional[str] = None, bbox: Optional[tuple] = None, zoom: Optional[int] = None, output_path: str = "map.png", show_labels: bool = True):
+        """Create a static map image for offline use. bbox and zoom are auto-calculated if not provided."""
+        from .offline import plot_static
+        # Use common default path if not provided
+        if mbtiles_path is None:
+            mbtiles_path = 'liopandas/satelight_israel.mbtiles'
+        return plot_static(self, mbtiles_path=mbtiles_path, bbox=bbox, zoom=zoom, output_path=output_path, show_labels=show_labels)
+
     # ------------------------------------------------------------------
     # Representation
     # ------------------------------------------------------------------

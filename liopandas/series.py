@@ -433,6 +433,11 @@ class Series:
         except ImportError:
             raise ImportError("geopandas is required for from_geopandas()")
 
+    def plot_static(self, mbtiles_path: str, bbox: Optional[tuple] = None, zoom: Optional[int] = None, output_path: str = "map.png"):
+        """Create a static map image for offline use. bbox and zoom are auto-calculated if not provided."""
+        from .offline import plot_static
+        return plot_static(self, mbtiles_path, bbox, zoom, output_path)
+
     # ------------------------------------------------------------------
     # Representation
     # ------------------------------------------------------------------
