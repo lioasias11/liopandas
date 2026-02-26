@@ -287,6 +287,20 @@ class DataFrame:
             lines.append(f"  {c}: {self._data[c].dtype}")
         return "\n".join(lines)
 
+    def isna(self) -> "DataFrame":
+        """Return a boolean-same-sized object indicating if the values are NA."""
+        new_data = {}
+        for c in self._columns:
+            new_data[c] = self[c].isna()._data
+        return DataFrame(new_data, index=self.index.copy())
+
+    def notna(self) -> "DataFrame":
+        """Return a boolean-same-sized object indicating if the values are NOT NA."""
+        new_data = {}
+        for c in self._columns:
+            new_data[c] = self[c].notna()._data
+        return DataFrame(new_data, index=self.index.copy())
+
     # ------------------------------------------------------------------
     # Aggregations
     # ------------------------------------------------------------------

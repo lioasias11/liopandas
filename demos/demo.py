@@ -1,9 +1,11 @@
+import os, sys, tempfile
+# Add project root to sys.path so we can import liopandas
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import liopandas as lp
 import pandas as pd
 import geopandas as gpd
 import shapely.geometry as sg
-import os, sys, tempfile
-sys.path.insert(0, os.path.dirname(__file__))
 
 print("=" * 60)
 print("LioPandas v{}".format(lp.__version__))
@@ -126,10 +128,10 @@ print(ldf)
 # 3. Generate static maps using LioPandas
 
 print("\n Generating detailed map with SIDE-BY-SIDE context view...")
-ldf.plot_static(output_path='With_side_map.png', show_city_labels=True, show_labels=False, show_context=True)
+ldf.plot_static(output_path='plots/With_side_map.png', show_city_labels=True, show_labels=False, show_context=True)
 
 print(" Generating map WITHOUT city labels")
-ldf.plot_static(output_path='Without_city_labels.png', show_city_labels=False, show_labels=True)
+ldf.plot_static(output_path='plots/Without_city_labels.png', show_city_labels=False, show_labels=True)
 
 print("\n Maps generated successfully!")
 
