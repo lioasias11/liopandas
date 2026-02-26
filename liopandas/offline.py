@@ -155,7 +155,9 @@ class StaticMapPlotter:
         extent = [lon_tl, lon_br, lat_br, lat_tl]
         return canvas, extent
 
-def plot_static(data, mbtiles_path='liopandas/satelight_israel.mbtiles', bbox=None, zoom=None, output_path="offline_map.png", show_labels=True):
+import os
+
+def plot_static(data, mbtiles_path='liopandas/satelight_israel.mbtiles', bbox=None, zoom=None, output_path="offline_map.png", show_labels=True, show_city_labels=True, show_context=False):
     """Renders an offline static map image with liopandas data overlaid.
     If bbox and zoom are None, they are calculated automatically from the data.
     """
@@ -172,11 +174,106 @@ def plot_static(data, mbtiles_path='liopandas/satelight_israel.mbtiles', bbox=No
         bbox = bbox if bbox is not None else auto_bbox
         zoom = zoom if zoom is not None else auto_zoom
 
+    # 1. Fetch Main Map
     canvas, extent = plotter.get_static_map(bbox, zoom)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    if show_context:
+        fig, (ax, ax_ctx) = plt.subplots(1, 2, figsize=(20, 10), gridspec_kw={'width_ratios': [2, 1]})
+    else:
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Render Main Map
     ax.imshow(canvas, extent=extent)
     
+    # Render Context Map if requested
+    if show_context:
+        # Whole region context (approx Israel bounds or zoomed out from data)
+        ctx_zoom = max(0, zoom - 4)
+        # Use full available map bounds or a reasonably larger area
+        ctx_bbox = (34.0, 36.0, 29.5, 33.5) # Israel approx
+        try:
+            ctx_canvas, ctx_extent = plotter.get_static_map(ctx_bbox, ctx_zoom)
+            ax_ctx.imshow(ctx_canvas, extent=ctx_extent)
+            
+            # Draw rectangle of the main map's extent on the context map
+            rect = sg.box(extent[0], extent[2], extent[1], extent[3])
+            rx, ry = rect.exterior.xy
+            ax_ctx.plot(rx, ry, color='yellow', linewidth=3, path_effects=[path_effects.withStroke(linewidth=5, foreground='black')])
+            ax_ctx.fill(rx, ry, color='yellow', alpha=0.2)
+            ax_ctx.set_title("Regional Context", fontsize=14, fontweight='bold')
+            ax_ctx.axis('off')
+        except Exception as e:
+            ax_ctx.text(0.5, 0.5, f"Context Map Unavailable: {e}", ha='center', va='center', fontsize=12, color='gray')
+            ax_ctx.axis('off')
+
+    # 2. Overlay City Labels from cities.csv if requested
+    if show_city_labels:
+        cities_file = os.path.join(os.path.dirname(__file__), 'cities.csv')
+        if os.path.exists(cities_file):
+            lon_min, lon_max, lat_min, lat_max = extent[0], extent[1], extent[2], extent[3]
+            try:
+                candidate_cities = []
+                with open(cities_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                    for line in lines[1:]:
+                        parts = line.strip().split('\t')
+                        if len(parts) >= 3:
+                            try:
+                                lat = float(parts[1])
+                                lon = float(parts[2])
+                                # Check if city is within map extent
+                                if lon_min <= lon <= lon_max and min(lat_min, lat_max) <= lat <= max(lat_min, lat_max):
+                                    candidate_cities.append({'name': parts[0], 'lat': lat, 'lon': lon})
+                            except ValueError: continue
+                
+                # Take top 10 in view
+                top_cities = candidate_cities[:10]
+                
+                # Label collision avoidance
+                occupied_rects = []
+                # Approx conversion from font/char to degrees
+                deg_w = (lon_max - lon_min)
+                deg_h = abs(lat_max - lat_min)
+                
+                for city in top_cities:
+                    name = city['name']
+                    lon, lat = city['lon'], city['lat']
+                    
+                    # Approximate label box (width approx 0.015 of view width per char)
+                    # Height approx 0.03 of view height
+                    tw = len(name) * 0.012 * deg_w
+                    th = 0.025 * deg_h
+                    
+                    # Label is slightly offset to the right: [lon + padding, lat - th/2, lon + padding + tw, lat + th/2]
+                    padding = 0.005 * deg_w
+                    rect = [lon + padding, lat - th/2, lon + padding + tw, lat + th/2]
+                    
+                    overlap = False
+                    for r in occupied_rects:
+                        # Standard AABB intersection
+                        if not (rect[2] < r[0] or rect[0] > r[2] or rect[3] < r[1] or rect[1] > r[3]):
+                            overlap = True
+                            break
+                    
+                    if not overlap:
+                        # Draw label
+                        ax.text(lon, lat, f"  {name}", fontsize=10, color='white', fontweight='bold',
+                                path_effects=[path_effects.withStroke(linewidth=2, foreground='black')],
+                                verticalalignment='center', zorder=8)
+                        # Draw point ABOVE the label (higher zorder)
+                        ax.plot(lon, lat, 'wo', markersize=5, markeredgecolor='black', alpha=0.9, zorder=10)
+                        occupied_rects.append(rect)
+                    else:
+                        # If label overlaps, we might still want to draw the point? 
+                        # The user asked for "display 10 top cities", implying we want to see them if possible.
+                        # We'll skip the label but could potentially draw the point. 
+                        # However, for "top 10" we usually want both.
+                        pass
+
+            except Exception as e:
+                print(f"Warning: Could not process cities.csv: {e}")
+
+    # 3. Overlay Data from DataFrame/Series
     geoms = []
     if hasattr(data, '_data'):
         if hasattr(data, 'columns'): # DataFrame
@@ -187,26 +284,29 @@ def plot_static(data, mbtiles_path='liopandas/satelight_israel.mbtiles', bbox=No
 
     for idx, geom in enumerate(geoms):
         label = None
-        if show_labels and hasattr(data, 'columns'):
-            # Try to find a label column
-            for col_name in ['city', 'name', 'label', 'location']:
-                if col_name in data.columns:
-                    label = str(data._data[col_name][idx])
-                    break
+        f_color = 'red'
+        f_size = 8
+        if hasattr(data, 'columns'):
+            if show_labels:
+                for col_name in ['city', 'name', 'label', 'location']:
+                    if col_name in data.columns:
+                        label = str(data._data[col_name][idx]); break
+            if 'color' in data.columns: f_color = data._data['color'][idx]
+            if 'size' in data.columns: f_size = float(data._data['size'][idx])
 
         if isinstance(geom, sg.Point):
-            ax.plot(geom.x, geom.y, 'ro', markersize=8, markeredgecolor='white', zorder=5)
+            ax.plot(geom.x, geom.y, 'o', color=f_color, markersize=f_size, markeredgecolor='white', zorder=5)
             if label:
                 ax.text(geom.x, geom.y, f"  {label}", fontsize=11, fontweight='bold', 
                         color='white', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')],
                         verticalalignment='center', zorder=6)
         elif isinstance(geom, sg.LineString):
             x, y = geom.xy
-            ax.plot(x, y, color='red', linewidth=2, zorder=4)
+            ax.plot(x, y, color=f_color, linewidth=f_size/4, zorder=4)
         elif isinstance(geom, sg.Polygon):
             x, y = geom.exterior.xy
-            ax.fill(x, y, color='red', alpha=0.3, zorder=3)
-            ax.plot(x, y, color='red', linewidth=1, zorder=3)
+            ax.fill(x, y, color=f_color, alpha=0.3, zorder=3)
+            ax.plot(x, y, color=f_color, linewidth=1, zorder=3)
             if label:
                 ax.text(geom.centroid.x, geom.centroid.y, label, fontsize=10, fontweight='bold',
                         color='white', path_effects=[path_effects.withStroke(linewidth=2, foreground='black')],
@@ -215,15 +315,17 @@ def plot_static(data, mbtiles_path='liopandas/satelight_israel.mbtiles', bbox=No
             for g in geom.geoms:
                 if isinstance(g, sg.LineString):
                     x, y = g.xy
-                    ax.plot(x, y, color='red', linewidth=2, zorder=4)
+                    ax.plot(x, y, color=f_color, linewidth=f_size/4, zorder=4)
                 elif isinstance(g, sg.Polygon):
                     x, y = g.exterior.xy
-                    ax.fill(x, y, color='red', alpha=0.3, zorder=3)
-                    ax.plot(x, y, color='red', linewidth=1, zorder=3)
+                    ax.fill(x, y, color=f_color, alpha=0.3, zorder=3)
+                    ax.plot(x, y, color=f_color, linewidth=1, zorder=3)
         elif hasattr(geom, 'centroid'):
-            ax.plot(geom.centroid.x, geom.centroid.y, 'rs', markersize=8, zorder=5)
+            ax.plot(geom.centroid.x, geom.centroid.y, 's', color=f_color, markersize=f_size, zorder=5)
 
-    ax.set_title("LioPandas Offline Static View")
+    ax.set_title("LioPandas Detailed View", fontsize=16, fontweight='bold')
+    if not show_context: ax.axis('off') # Keep axis if showing comparative context
+    
     plt.savefig(output_path, bbox_inches='tight', dpi=150)
     plt.close()
     return output_path

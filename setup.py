@@ -6,5 +6,5 @@ setup(
     description="A minimal pandas-like library built from scratch using NumPy.",
     packages=find_packages(),
     python_requires=">=3.8",
-    install_requires=["numpy"],
+    install_requires=["numpy"]
 )

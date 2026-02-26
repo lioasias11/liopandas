@@ -32,7 +32,7 @@ print(rich)
 
 # 4.  Column arithmetic
 print("\n▸ 4. Add computed column  (bonus = salary * 0.1)")
-df["bonus"] = df["salary"] * 0.1 # type: ignore
+df["bonus"] = df["salary"] * 0.1 
 print(df)
 
 # 5.  GroupBy 
@@ -95,14 +95,20 @@ print(type(ldf_new))
 # 13. Offline Map Generation (No Internet Required)
 
 data = {
-    'city': ['Tel Aviv', 'Jerusalem', 'Haifa', 'Beer Sheva', 'Eilat'],
-    'population': [460613, 936425, 285316, 209687, 52290],
+    'city': [
+        'Gaza City - Center',
+        'Gaza - Al Shati Camp',
+        'Gaza - Al Rimal',
+        'Gaza - Sheikh Radwan',
+        'Gaza - Tel al-Hawa'
+    ],
+    'population': [590481, 590481, 590481, 590481, 590481],
     'geometry': [
-        sg.Point(34.7818, 32.0853), # Tel Aviv
-        sg.Point(35.2137, 31.7683), # Jerusalem
-        sg.Point(34.9888, 32.7940), # Haifa
-        sg.Point(34.7915, 31.2530), # Beer Sheba
-        sg.Point(34.9519, 29.5577)  # Eilat
+        sg.Point(34.4668, 31.5017),  # Gaza City Center
+        sg.Point(34.4505, 31.5225),  # Al Shati (Beach Camp)
+        sg.Point(34.4750, 31.5150),  # Al Rimal
+        sg.Point(34.4620, 31.5300),  # Sheikh Radwan
+        sg.Point(34.4500, 31.4900)   # Tel al-Hawa
     ]
 }
 gdf = gpd.GeoDataFrame(data, crs="EPSG:4326")
@@ -114,19 +120,17 @@ print(gdf[['city', 'population']])
 # LioPandas has a built-in from_geopandas method
 ldf = lp.DataFrame.from_geopandas(gdf)
 
-print("\n2. Converted to LioPandas DataFrame:")
+print("\n Converted to LioPandas DataFrame:")
 print(ldf)
 
 # 3. Generate static maps using LioPandas
 
-print("\n3a. Generating static map WITH labels (default): israel_with_labels.png...")
-ldf.plot_static(output_path='israel_with_labels.png')
+print("\n Generating detailed map with SIDE-BY-SIDE context view...")
+ldf.plot_static(output_path='With_side_map.png', show_city_labels=True, show_labels=False, show_context=True)
 
-print("3b. Generating static map WITHOUT labels (show_labels=False): israel_no_labels.png...")
-ldf.plot_static(output_path='israel_no_labels.png', show_labels=False)
+print(" Generating map WITHOUT city labels")
+ldf.plot_static(output_path='Without_city_labels.png', show_city_labels=False, show_labels=True)
 
 print("\n Maps generated successfully!")
 
-
 print("\n All tests passed!\n")
-
